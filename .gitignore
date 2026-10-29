@@ -1,0 +1,15 @@
+# secrets
+.env
+.env.*
+!.env.example
+# Qloo response data must never be committed (hackathon API terms)
+*cache*
+*fixtures*
+*.frozen.json
+# build
+.venv/
+__pycache__/
+node_modules/
+.next/
+.vercel/
+.DS_Store
