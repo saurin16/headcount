@@ -1,12 +1,12 @@
-"""Phase 0a: Gemini via Vertex AI using gcloud ADC (no API key)."""
+"""Phase 0a: Gemini via AI Studio API key (Vertex had no model access for a new project)."""
 import json, os, time
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
 from google import genai
 from google.genai import types
 
-client = genai.Client()
-for model in ["gemini-2.5-flash", "gemini-2.5-pro"]:
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+for model in ["gemini-3.8-flash", "gemini-3.1-pro-preview"]:
     t0 = time.perf_counter()
     r = client.models.generate_content(
         model=model,
