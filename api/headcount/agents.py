@@ -104,7 +104,8 @@ async def comps(state: dict) -> dict:
             q.insights("urn:entity:artist", why="acts with the same audience",
                        signal__interests__entities=act.entity_id, take=10),
             q.insights("urn:entity:artist", why="acts in this genre that this metro loves (co-bill pool)",
-                       filter__tags=",".join(act.genres), signal__location__query=metro, take=25)
+                       # Two most specific genres: a broad third tag ("Rock") pulls in off-genre acts.
+                       filter__tags=",".join(act.genres[:2]), signal__location__query=metro, take=25)
             if act.genres else asyncio.sleep(0, {"entities": []}),
             q.insights("urn:entity:place", why="where this audience already goes locally",
                        signal__interests__entities=act.entity_id, filter__location__query=metro, take=25),
@@ -118,8 +119,9 @@ async def comps(state: dict) -> dict:
     cobills = [e["name"] for e in local.get("entities", [])
                if e["name"] != act.name and (e.get("popularity") or 0) < act.popularity][:5]
     hangouts = [e["name"] for e in places.get("entities", []) if _is_hangout(e)][:6]
-    c = Comps(adjacent_acts=[e["name"] for e in adj.get("entities", [])][:8], local_cobills=cobills,
-              hangouts=hangouts, sponsors=[e["name"] for e in brands.get("entities", [])][:5],
+    c = Comps(adjacent_acts=list(dict.fromkeys(e["name"] for e in adj.get("entities", [])))[:8],
+              local_cobills=list(dict.fromkeys(cobills)),
+              hangouts=hangouts, sponsors=list(dict.fromkeys(e["name"] for e in brands.get("entities", [])))[:5],
               **_demographics(demo))
     top_age = max(c.age_index, key=c.age_index.get) if c.age_index else None
     text = (f"Co-bill pool: {', '.join(c.local_cobills[:3]) or 'none found'} · "
