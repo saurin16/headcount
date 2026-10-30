@@ -219,7 +219,7 @@ function RunContent({ id }: { id: string }) {
               summary={
                 run.demand
                   ? `${o.city}: rank ${run.demand.rank} of ${run.demand.of} US cities`
-                  : "Audience ages, local openers and places"
+                  : "Audience ages, openers this city's fans like, and places"
               }
             >
               <DemandCard run={run} />

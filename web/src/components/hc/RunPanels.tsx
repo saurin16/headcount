@@ -294,7 +294,7 @@ export function AudienceCard({ run }: { run: RunView }) {
           <span>more →</span>
         </div>
       </div>
-      <ChipGroup label="Local openers" items={c.local_cobills} />
+      <ChipGroup label="Openers this city's fans like" items={c.local_cobills} />
       <ChipGroup label="Where to put posters" items={c.hangouts} />
       <ChipGroup label="Potential sponsors" items={c.sponsors} />
       <ChipGroup label="Similar bands" items={c.adjacent_acts} />
@@ -403,7 +403,7 @@ export function CompareCard({ run }: { run: RunView }) {
               v={m.verdict.toUpperCase() === "PASS" ? "No offer" : money(m.guarantee_ceiling)}
               hl={m.guarantee_ceiling !== run.offer.guarantee}
             />
-            <ChipGroup label="Local openers" items={m.cobill} />
+            <ChipGroup label="Openers this city's fans like" items={m.cobill} />
           </>
         ) : (
           <p className="text-sm mt-3">Checking this offer…</p>

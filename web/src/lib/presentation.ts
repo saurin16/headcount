@@ -40,7 +40,7 @@ export function approvalExplanation(run: RunView) {
   return reason
     .replace(/percentile/gi, "city taste score")
     .replace(/guarantee ceiling/gi, "max to pay the band")
-    .replace(/co-bill/gi, "local openers")
+    .replace(/co-bill/gi, "openers this city's fans like")
     .replace(/Rubric/g, "The math");
 }
 export function approvalWhy(run: RunView) {

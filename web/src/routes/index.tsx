@@ -29,7 +29,7 @@ const QLOO_USES = [
     "Ranks this band's audience taste across 105 US cities",
   ],
   ["Comps Agent", "/v2/insights · urn:entity:artist", "Bands with the same audience"],
-  ["Comps Agent", "/v2/insights · artist + genre tags + location", "Local openers this city loves"],
+  ["Comps Agent", "/v2/insights · artist + genre tags + location", "Openers in this genre that this city's audience likes"],
   ["Comps Agent", "/v2/insights · urn:entity:place", "Where to put posters"],
   ["Comps Agent", "/v2/insights · urn:entity:brand", "Potential sponsors"],
   ["Comps Agent", "/v2/insights · urn:demographics", "Who's in the room: age and gender"],
