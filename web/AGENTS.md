@@ -11,3 +11,4 @@
 
 - Frontend-only: all data comes from the external Headcount API whose base URL lives only in src/lib/api.ts; never add a backend/Cloud. Why: hackathon judges must run it with zero setup.
 - Live run state comes from src/lib/useRun.ts (SSE "run" events, 2s polling fallback, reconnect after decisions). Why: one source of truth for streaming.
+- Run presentation derives progress and answer reasons from RunView through browser-safe helpers; API agent names remain unchanged and are translated only for display. Why: simplify the UI without changing streaming or recorded data.

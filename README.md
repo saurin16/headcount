@@ -2,7 +2,7 @@
 
 > Know who'll show up before you sign the offer.
 
-Headcount is a multi-agent decision tool for **independent promoters and venue talent buyers**. Give it an act, a city, a room size and the guarantee you're about to offer. Agents grounded in **Qloo's taste graph** measure how much that city's audience actually loves the act, argue about it, and return **GO / RESIZE / PASS** with a room size, a guarantee ceiling, local co-bills, sponsor targets and promo spots. Risky offers pause for a human.
+Headcount is a multi-agent decision tool for **independent promoters and venue talent buyers**. Give it an act, a city, a room size and the guarantee you're about to offer. Agents grounded in **Qloo's taste graph** measure how much that city's audience actually loves the act, argue about it, and return **GO / RESIZE / PASS** with a room size, a guarantee ceiling, openers the city's fans like, sponsor targets and promo spots. Risky offers pause for a human.
 
 **▶ Live app: https://headcount-live.lovable.app** (no signup; pick a scenario card or run your own offer)
 API: https://headcount-api-786561239973.us-central1.run.app · Built for the [Qloo Agentic Hackathon](https://qloo.devpost.com/).
@@ -21,7 +21,7 @@ Every offer makes **7 Qloo calls across 6 query types**. Remove Qloo and nothing
 | Scout | `GET /search` (`types=urn:entity:artist`) | Resolve the act to a Qloo entity; exact-name match first, then popularity; genre tags and image |
 | Demand Analyst | `GET /v2/insights` `filter.type=urn:heatmap` (US) | Thousands of geohash cells of taste affinity. Headcount maps each of **105 US metros** to its cell, ranks metros against each other → **metro demand percentile**, plus a **hype gap** (popularity − affinity) |
 | Comps Agent | `GET /v2/insights` `urn:entity:artist` (taste signal) | Acts with the same audience |
-| Comps Agent | `GET /v2/insights` `urn:entity:artist` (`filter.tags` = act's two most specific genres + `signal.location`) | Co-bill pool: acts in this genre that this metro's audience loves |
+| Comps Agent | `GET /v2/insights` `urn:entity:artist` (`filter.tags` = act's two most specific genres + `signal.location`) | Openers: acts in this genre that this metro's audience likes (not necessarily local acts) |
 | Comps Agent | `GET /v2/insights` `urn:entity:place` (`filter.location`) | Where this audience already goes locally → street-team / poster spots |
 | Comps Agent | `GET /v2/insights` `urn:entity:brand` | Brands this audience over-indexes on → sponsor targets |
 | Comps Agent | `GET /v2/insights` `urn:demographics` | Age and gender skew of the audience ("who's in the room") |
@@ -68,7 +68,7 @@ Backend (`api/`):
 ```bash
 cp .env.example .env          # QLOO_API_KEY (hackathon key), GEMINI_API_KEY
 cd api && uv sync
-uv run pytest -q              # 19 tests: metro math, rubric, guard rails, risk gate, full graph with fakes
+uv run pytest -q              # 21 tests: metro math, rubric, guard rails, risk gate, Qloo retries, full graph with fakes
 uv run python -m headcount.cli "Japanese Breakfast" "Tulsa, OK" 2800 40000
 uv run uvicorn headcount.main:app --reload
 ```
