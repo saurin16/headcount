@@ -71,14 +71,15 @@ async def record(run_id: str, key: str):
     """Save a finished or paused live run as the recording for a scenario card (private Firestore)."""
     run = RUNS[run_id]
     await _store().collection("recordings").document(key).set(
-        {"source_run": run.id, "recorded_at": run.started, "view": json.loads(json.dumps(run.view(), default=str))})
+        # Stored as a JSON string: Firestore rejects nested arrays like top_metros pairs.
+        {"source_run": run.id, "recorded_at": run.started, "view_json": json.dumps(run.view(), default=str)})
 
 
 async def start_replay(key: str) -> Run:
     doc = await _store().collection("recordings").document(key).get()
     if not doc.exists:
         raise KeyError(key)
-    rec = doc.to_dict()["view"]
+    rec = json.loads(doc.to_dict()["view_json"])
     run = Run(id=uuid.uuid4().hex[:12], offer=rec["offer"], replay_of=key)
     RUNS[run.id] = run
     asyncio.create_task(_replay(run, rec))
