@@ -1,5 +1,7 @@
 """Thin async client for the Qloo hackathon API."""
+import asyncio
 import os
+import random
 import time
 from dataclasses import dataclass, field
 
@@ -9,6 +11,22 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
 
 BASE_URL = os.environ.get("QLOO_BASE_URL", "https://hackathon.api.qloo.com")
+
+# Shared across every run on this instance: the hackathon key rate-limits bursts, so cap
+# concurrent Qloo requests and reuse identical responses (private server-side cache is
+# allowed by the hackathon terms; nothing is written to the repo).
+MAX_IN_FLIGHT = int(os.environ.get("QLOO_MAX_IN_FLIGHT", "4"))
+CACHE_TTL_S = 6 * 3600
+RETRIES = 6
+_gate: asyncio.Semaphore | None = None
+_cache: dict[tuple, tuple[float, dict]] = {}
+
+
+def _semaphore() -> asyncio.Semaphore:
+    global _gate
+    if _gate is None:
+        _gate = asyncio.Semaphore(MAX_IN_FLIGHT)
+    return _gate
 
 
 class QlooError(Exception):
@@ -23,6 +41,8 @@ class QlooCall:
     status: int
     ms: int
     why: str = ""
+    cached: bool = False
+    retries: int = 0
 
 
 @dataclass
@@ -38,16 +58,35 @@ class Qloo:
 
     async def get(self, endpoint: str, params: dict, why: str = "") -> dict:
         t0 = time.perf_counter()
-        for attempt in range(3):
-            resp = await self._http.get(endpoint, params=params)
-            if resp.status_code not in (429, 502, 503, 504):
+        key = (endpoint, tuple(sorted((k, str(v)) for k, v in params.items())))
+        hit = _cache.get(key)
+        if hit and time.time() - hit[0] < CACHE_TTL_S:
+            self.calls.append(QlooCall(endpoint, params, 200, int((time.perf_counter() - t0) * 1000),
+                                       why, cached=True))
+            return hit[1]
+
+        retries = 0
+        for attempt in range(RETRIES):
+            async with _semaphore():
+                try:
+                    resp = await self._http.get(endpoint, params=params)
+                except httpx.TimeoutException:
+                    resp = None
+            if resp is not None and resp.status_code not in (429, 500, 502, 503, 504):
                 break
-            await _sleep(0.5 * 2**attempt)
-        self.calls.append(QlooCall(endpoint, params, resp.status_code,
-                                   int((time.perf_counter() - t0) * 1000), why))
-        if resp.status_code != 200:
-            raise QlooError(f"{endpoint} {resp.status_code}: {resp.text[:200]}")
-        return resp.json()
+            retries += 1
+            if attempt < RETRIES - 1:
+                wait = float(resp.headers.get("retry-after", 0) or 0) if resp is not None else 0
+                await asyncio.sleep(max(wait, 0.6 * 2**attempt) + random.uniform(0, 0.4))
+        status = resp.status_code if resp is not None else 504
+        self.calls.append(QlooCall(endpoint, params, status, int((time.perf_counter() - t0) * 1000),
+                                   why, retries=retries))
+        if status != 200:
+            body = resp.text[:200] if resp is not None else "timeout"
+            raise QlooError(f"{endpoint} {status}: {body}")
+        data = resp.json()
+        _cache[key] = (time.time(), data)
+        return data
 
     async def search(self, query: str, types: str = "urn:entity:artist", take: int = 3, why: str = ""):
         data = await self.get("/search", {"query": query, "types": types, "take": take}, why)
@@ -61,8 +100,3 @@ class Qloo:
 
     async def aclose(self):
         await self._http.aclose()
-
-
-async def _sleep(s: float):
-    import asyncio
-    await asyncio.sleep(s)
