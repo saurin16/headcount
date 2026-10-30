@@ -62,7 +62,8 @@ async def scout(state: dict) -> dict:
     best, others = pick_artist(offer.act, results)
     ids, names = genre_tags(best)
     act = Act(entity_id=best["entity_id"], name=best["name"], popularity=best.get("popularity") or 0,
-              genres=ids, genre_names=names, alternatives=others[:4])
+              genres=ids, genre_names=names, alternatives=others[:4],
+              image=((best.get("properties") or {}).get("image") or {}).get("url"))
     note = f"Resolved “{offer.act}” → {act.name} ({', '.join(names) or 'no genre tags'}); metro → {metro}"
     if best["name"].lower() != offer.act.strip().lower():
         note += f" · ⚠ no exact match, closest was {best['name']}"
@@ -90,7 +91,8 @@ async def demand(state: dict) -> dict:
             f"Strongest: {', '.join(n for n, _ in d.top_metros[:3])}"
             if d.percentile is not None else f"No heatmap cell for {metro}: thin data")
     return {"demand": d.model_dump(), "trace": [event("Demand Analyst", text, t0, q,
-            cells=len(cells), map=[{"g": s.geohash, "p": s.percentile, "m": s.metro} for s in ranked])]}
+            cells=len(cells), map=[{"metro": s.metro, "lat": METROS[s.metro][0], "lon": METROS[s.metro][1],
+                                   "percentile": s.percentile, "rank": s.rank} for s in ranked])]}
 
 
 # ---------- Comps Agent ----------
@@ -98,7 +100,7 @@ async def comps(state: dict) -> dict:
     t0, act, metro = time.perf_counter(), Act(**state["act"]), state["metro"]
     q = Qloo()
     try:
-        adj, local, places, brands = await asyncio.gather(
+        adj, local, places, brands, demo = await asyncio.gather(
             q.insights("urn:entity:artist", why="acts with the same audience",
                        signal__interests__entities=act.entity_id, take=10),
             q.insights("urn:entity:artist", why="acts in this genre that this metro loves (co-bill pool)",
@@ -108,6 +110,8 @@ async def comps(state: dict) -> dict:
                        signal__interests__entities=act.entity_id, filter__location__query=metro, take=25),
             q.insights("urn:entity:brand", why="brands this audience over-indexes on (sponsors)",
                        signal__interests__entities=act.entity_id, take=6),
+            q.insights("urn:demographics", why="who is in the room: age and gender skew",
+                       signal__interests__entities=act.entity_id),
         )
     finally:
         await q.aclose()
@@ -115,11 +119,20 @@ async def comps(state: dict) -> dict:
                if e["name"] != act.name and (e.get("popularity") or 0) < act.popularity][:5]
     hangouts = [e["name"] for e in places.get("entities", []) if _is_hangout(e)][:6]
     c = Comps(adjacent_acts=[e["name"] for e in adj.get("entities", [])][:8], local_cobills=cobills,
-              hangouts=hangouts, sponsors=[e["name"] for e in brands.get("entities", [])][:5])
+              hangouts=hangouts, sponsors=[e["name"] for e in brands.get("entities", [])][:5],
+              **_demographics(demo))
+    top_age = max(c.age_index, key=c.age_index.get) if c.age_index else None
     text = (f"Co-bill pool: {', '.join(c.local_cobills[:3]) or 'none found'} · "
+            + (f"Audience skews {top_age.replace('_', ' ')} · " if top_age else "") +
             f"Audience hangouts: {', '.join(c.hangouts[:3]) or 'none'} · "
             f"Sponsors: {', '.join(c.sponsors[:3])}")
     return {"comps": c.model_dump(), "trace": [event("Comps Agent", text, t0, q)]}
+
+
+def _demographics(r: dict) -> dict:
+    rows = r.get("demographics") or [{}]
+    q = rows[0].get("query", {})
+    return {"age_index": q.get("age", {}), "gender_index": q.get("gender", {})}
 
 
 def _is_hangout(e: dict) -> bool:

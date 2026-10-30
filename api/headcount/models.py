@@ -21,6 +21,7 @@ class Act(BaseModel):
     genres: list[str]          # Qloo genre tag ids, music form
     genre_names: list[str]
     alternatives: list[str] = []  # other same-query matches Scout rejected
+    image: str | None = None
 
 
 class MetroDemand(BaseModel):
@@ -40,6 +41,9 @@ class Comps(BaseModel):
     local_cobills: list[str]
     hangouts: list[str]   # places this audience already goes in the metro
     sponsors: list[str]
+    # Index vs. average (−1…+1): which age bands / genders over-index in this act's audience.
+    age_index: dict[str, float] = {}
+    gender_index: dict[str, float] = {}
 
 
 class BaselineView(BaseModel):
