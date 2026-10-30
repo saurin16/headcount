@@ -4,7 +4,8 @@
 
 Headcount is a multi-agent decision tool for **independent promoters and venue talent buyers**. Give it an act, a city, a room size and the guarantee you're about to offer. Agents grounded in **Qloo's taste graph** measure how much that city's audience actually loves the act, argue about it, and return **GO / RESIZE / PASS** with a room size, a guarantee ceiling, local co-bills, sponsor targets and promo spots. Risky offers pause for a human.
 
-Built for the [Qloo Agentic Hackathon](https://qloo.devpost.com/).
+**▶ Live app: https://headcount-live.lovable.app** (no signup; pick a scenario card or run your own offer)
+API: https://headcount-api-786561239973.us-central1.run.app · Built for the [Qloo Agentic Hackathon](https://qloo.devpost.com/).
 
 ## Why
 - 64% of US independent stages operated without profit in 2024 ([NIVA State of Live, via Pollstar](https://news.pollstar.com/2025/06/23/nivas-state-of-live-survey-finds-independent-venues-generated-153-1b-in-total-economic-output-across-u-s-in-2024-64-stages-struggling-with-unprofitability)).
@@ -59,6 +60,11 @@ flowchart LR
 - Qloo responses are cached and stored only server-side (Firestore), never in this repo.
 
 ## Run it
+Frontend (`web/`, React + TanStack Start + Tailwind, built with Lovable):
+```bash
+cd web && bun install && bun run dev      # or npm install && npm run dev
+```
+Backend (`api/`):
 ```bash
 cp .env.example .env          # QLOO_API_KEY (hackathon key), GEMINI_API_KEY
 cd api && uv sync
