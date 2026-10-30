@@ -4,6 +4,9 @@ import json
 import time
 from dataclasses import asdict
 
+from langgraph.types import interrupt
+
+from headcount import gate as risk
 from headcount import llm, rubric
 from headcount.metro import METROS, score_metros
 from headcount.models import (Act, BaselineView, Comps, DealMemo, MetroDemand,
@@ -201,8 +204,8 @@ async def deal(state: dict) -> dict:
     memo, ms = await llm.ask(llm.PRO, DEAL_SYS, prompt, DealMemo)
     memo, notes = clamp(memo, state["draft"], offer, state["comps"])
     text = f"{memo.verdict}: {memo.headline}" + (f" · arbiter: {'; '.join(notes)}" if notes else "")
-    return {"memo": memo.model_dump(), "trace": [event("Deal Agent", text, t0, llm_ms=ms, model=llm.PRO,
-                                                       clamps=notes)]}
+    return {"memo": memo.model_dump(), "clamps": notes,
+            "trace": [event("Deal Agent", text, t0, llm_ms=ms, model=llm.PRO, clamps=notes)]}
 
 
 def clamp(memo: DealMemo, draft: dict, offer: Offer, comps: dict) -> tuple[DealMemo, list[str]]:
@@ -230,3 +233,28 @@ def should_rebut(state: dict) -> bool:
     s, m = state["skeptic"], state["memo"]
     high = any(o["severity"] == "high" for o in s["objections"])
     return state.get("round", 1) < 2 and high and s["suggested_verdict"] != m["verdict"]
+
+
+# ---------- Risk gate (graduated autonomy) ----------
+async def gate(state: dict) -> dict:
+    t0, offer = time.perf_counter(), Offer(**state["offer"])
+    reasons = risk.assess(offer, state["act"], state["demand"], state["skeptic"], state["memo"],
+                          state.get("clamps", []))
+    acts = risk.actions(offer, state["act"], state["metro"], state["memo"])
+    if not reasons:
+        for a in acts:
+            a["status"] = "auto-drafted"
+        return {"approval": {"required": False, "reasons": []}, "actions": acts,
+                "trace": [event("Risk Gate", f"Low risk → auto-executed {len(acts)} drafts", t0)]}
+
+    # Pauses the graph here; resumes with {"decision": "approve"|"reject", "note": str}.
+    decision = interrupt({"reasons": reasons, "memo": state["memo"], "actions": acts})
+    approved = decision.get("decision") == "approve"
+    for a in acts:
+        a["status"] = "approved-drafted" if approved else "rejected"
+    who = decision.get("by") or "buyer"
+    text = (f"{'Approved' if approved else 'Rejected'} by {who}"
+            + (f": “{decision['note']}”" if decision.get("note") else ""))
+    return {"approval": {"required": True, "reasons": reasons, "decision": decision.get("decision"),
+                         "note": decision.get("note", ""), "by": who},
+            "actions": acts, "trace": [event("Human", text, t0)]}

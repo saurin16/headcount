@@ -1,4 +1,6 @@
 """Full graph run with fake Qloo + fake LLM (synthetic data; no Qloo responses stored)."""
+from langgraph.types import Command
+
 from headcount import agents, llm
 from headcount.graph import build
 from headcount.metro import METROS, geohash
@@ -42,11 +44,19 @@ async def fake_ask(model, system, prompt, schema):
 async def test_graph_runs_end_to_end_with_rebuttal(monkeypatch):
     monkeypatch.setattr(agents, "Qloo", FakeQloo)
     monkeypatch.setattr(llm, "ask", fake_ask)
-    out = await build().ainvoke({"offer": {"act": "Japanese Breakfast", "city": "Tulsa, OK",
-                                           "capacity": 2800, "guarantee": 40000}, "trace": []})
+    g, cfg = build(), {"configurable": {"thread_id": "t1"}}
+    out = await g.ainvoke({"offer": {"act": "Japanese Breakfast", "city": "Tulsa, OK",
+                                     "capacity": 2800, "guarantee": 40000}, "trace": []}, cfg)
+    # Skeptic still says PASS after the rebuttal → the gate pauses for a human.
+    assert "__interrupt__" in out
+    assert any("disagree" in r for r in out["__interrupt__"][0].value["reasons"])
+    out = await g.ainvoke(Command(resume={"decision": "approve", "note": "ok at 700", "by": "test"}), cfg)
+    assert out["approval"]["decision"] == "approve"
+    assert all(a["status"] == "approved-drafted" for a in out["actions"])
     assert out["draft"]["verdict"] == "PASS"          # Tulsa ranks last of 3 → percentile 0
     assert out["memo"]["verdict"] == "RESIZE"
     assert out["round"] == 2                           # high objection not adopted → one rebuttal
     agents_seen = [e["agent"] for e in out["trace"]]
-    for a in ("Scout", "Demand Analyst", "Comps Agent", "Baseline (no Qloo)", "Rubric", "Skeptic", "Deal Agent"):
+    for a in ("Scout", "Demand Analyst", "Comps Agent", "Baseline (no Qloo)", "Rubric", "Skeptic", "Deal Agent",
+              "Human"):
         assert a in agents_seen
