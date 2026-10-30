@@ -4,7 +4,7 @@ import json
 import os
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
@@ -14,6 +14,8 @@ from headcount.agents import resolve_metro
 from headcount.metro import METROS
 from headcount.models import Offer
 from headcount.qloo import Qloo
+
+ADMIN_TOKEN = os.environ.get("HEADCOUNT_ADMIN_TOKEN", "")
 
 app = FastAPI(title="Headcount")
 app.add_middleware(
@@ -43,6 +45,30 @@ async def qloo_ping():
 @app.get("/metros")
 async def metros():
     return sorted(METROS)
+
+
+SCENARIOS = {"ai-would-sign": "Khruangbin · Omaha", "hometown-hero": "Turnpike Troubadours · Tulsa",
+             "agents-disagree": "Japanese Breakfast · Tulsa"}
+
+
+@app.post("/replays/{key}")
+async def create_replay(key: str):
+    """Replay a recorded live run for a scenario card (fast and repeatable for judges)."""
+    if key not in SCENARIOS:
+        raise HTTPException(404, "unknown scenario")
+    try:
+        return (await runs.start_replay(key)).view()
+    except KeyError:
+        raise HTTPException(404, "scenario not recorded yet")
+
+
+@app.post("/runs/{run_id}/record/{key}")
+async def record_run(run_id: str, key: str, x_admin_token: str = Header(default="")):
+    if not ADMIN_TOKEN or x_admin_token != ADMIN_TOKEN or key not in SCENARIOS:
+        raise HTTPException(403, "forbidden")
+    _get(run_id)
+    await runs.record(run_id, key)
+    return {"ok": True, "key": key, "run_id": run_id}
 
 
 @app.post("/runs")
